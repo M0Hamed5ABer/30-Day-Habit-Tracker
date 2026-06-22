@@ -1,0 +1,1148 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>30-Day Habit Tracker</title>
+    <link rel="shortcut icon" href="time-left.ico" type="image/x-icon" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family: system-ui, sans-serif;
+        background: #f5f5f2;
+        color: #1a1a18;
+        padding: 1.5rem;
+      }
+      .wrap {
+        max-width: 1200px;
+        margin: 0 auto;
+      }
+      .main-title {
+        font-size: 20px;
+        font-weight: 500;
+        margin-bottom: 4px;
+      }
+      .subtitle {
+        font-size: 13px;
+        color: #666;
+        margin-bottom: 1.25rem;
+      }
+      .task-input-row {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 1rem;
+        align-items: center;
+      }
+      .task-input-row input {
+        flex: 1;
+        font-size: 14px;
+        padding: 8px 12px;
+        border: 1px solid #ccc;
+        border-radius: 8px;
+        background: #fff;
+        color: #1a1a18;
+        outline: none;
+      }
+      .task-input-row input:focus {
+        border-color: #888;
+      }
+      .btn {
+        font-size: 13px;
+        padding: 8px 14px;
+        cursor: pointer;
+        border: 1px solid #bbb;
+        border-radius: 8px;
+        background: #fff;
+        color: #1a1a18;
+        white-space: nowrap;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+      }
+      .btn:hover {
+        background: #f0f0ec;
+      }
+      .btn.green {
+        border-color: #639922;
+        color: #3b6d11;
+        background: #eaf3de;
+      }
+      .btn.green:hover {
+        background: #d4ebbb;
+      }
+      .btn.blue {
+        border-color: #378add;
+        color: #185fa5;
+        background: #e6f1fb;
+      }
+      .btn.blue:hover {
+        background: #cce4f8;
+      }
+      .btn.amber {
+        border-color: #ba7517;
+        color: #854f0b;
+        background: #faeeda;
+      }
+      .btn.amber:hover {
+        background: #f5ddb0;
+      }
+      .action-row {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 1.5rem;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      .toast {
+        position: fixed;
+        bottom: 1.5rem;
+        left: 50%;
+        transform: translateX(-50%);
+        background: #1a1a18;
+        color: #fff;
+        padding: 10px 20px;
+        border-radius: 8px;
+        font-size: 13px;
+        opacity: 0;
+        transition: opacity 0.3s;
+        pointer-events: none;
+        z-index: 99;
+      }
+      .toast.show {
+        opacity: 1;
+      }
+      .stats-row {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 10px;
+        margin-bottom: 1.5rem;
+      }
+      .stat-card {
+        background: #eeeee8;
+        border-radius: 8px;
+        padding: 10px 14px;
+        text-align: center;
+      }
+      .stat-label {
+        font-size: 12px;
+        color: #666;
+        margin-bottom: 4px;
+      }
+      .stat-val {
+        font-size: 22px;
+        font-weight: 500;
+      }
+      .stat-val.green {
+        color: #3b6d11;
+      }
+      .stat-val.amber {
+        color: #854f0b;
+      }
+      .table-scroll {
+        overflow-x: auto;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12px;
+        table-layout: fixed;
+      }
+
+      /* ── Sticky columns ── */
+      thead th:nth-child(1),
+      thead th:nth-child(2),
+      tbody td:nth-child(1),
+      tbody td:nth-child(2) {
+        position: sticky;
+        z-index: 2;
+        background: #f5f5f2;
+      }
+      tbody tr:hover td:nth-child(1),
+      tbody tr:hover td:nth-child(2) {
+        background: #f0f0ec;
+      }
+      thead th:nth-child(1),
+      tbody td:nth-child(1) {
+        left: 0;
+        width: 32px;
+      }
+      thead th:nth-child(2),
+      tbody td:nth-child(2) {
+        left: 32px;
+        width: 130px;
+        /* subtle right shadow so content slides under */
+        box-shadow: 3px 0 6px -2px rgba(0,0,0,0.10);
+      }
+      thead th:nth-child(1),
+      thead th:nth-child(2) {
+        background: #eeeee8;
+        z-index: 3;
+      }
+      /* ── end sticky ── */
+
+      thead th {
+        background: #eeeee8;
+        color: #555;
+        font-weight: 500;
+        padding: 7px 3px;
+        text-align: center;
+        border-bottom: 1px solid #ddd;
+        position: sticky;
+        top: 0;
+      }
+      thead th.task-col {
+        text-align: left;
+        padding-left: 10px;
+        width: 130px;
+        font-size: 11px;
+      }
+      thead th.pct-col {
+        width: 70px;
+        color: #1a1a18;
+      }
+      thead th.del-col {
+        width: 32px;
+      }
+      tbody tr:hover {
+        background: #f0f0ec;
+      }
+      tbody td {
+        padding: 5px 2px;
+        text-align: center;
+        border-bottom: 1px solid #e8e8e4;
+      }
+      tbody td.task-name {
+        text-align: left;
+        padding-left: 10px;
+        font-size: 12px;
+        font-weight: 500;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 130px;
+      }
+      .day-btn {
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        border: 1px solid #ccc;
+        background: transparent;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 13px;
+        transition: background 0.15s;
+      }
+      .day-btn.done {
+        background: #eaf3de;
+        border-color: #639922;
+        color: #3b6d11;
+      }
+      .day-btn.missed {
+        background: #fcebeb;
+        border-color: #e24b4a;
+        color: #a32d2d;
+      }
+      .day-btn:hover:not(.done):not(.missed) {
+        background: #e8f0fb;
+      }
+      .pct-cell {
+        padding: 5px 6px;
+      }
+      .pct-val {
+        font-weight: 500;
+        font-size: 13px;
+      }
+      .pct-bar-wrap {
+        width: 100%;
+        height: 5px;
+        background: #ddd;
+        border-radius: 3px;
+        margin-top: 3px;
+      }
+      .pct-bar {
+        height: 5px;
+        border-radius: 3px;
+      }
+      .remove-btn {
+        background: transparent;
+        border: none;
+        cursor: pointer;
+        color: #999;
+        font-size: 15px;
+        padding: 2px 5px;
+      }
+      .remove-btn:hover {
+        color: #a32d2d;
+      }
+      .no-tasks {
+        text-align: center;
+        color: #888;
+        padding: 2rem;
+        font-size: 14px;
+      }
+      .save-info {
+        font-size: 11px;
+        color: #999;
+      }
+      .drag-handle {
+        cursor: grab;
+        font-size: 18px;
+        color: #777;
+        user-select: none;
+      }
+      .drag-handle:active {
+        cursor: grabbing;
+      }
+
+      /* Analysis Section */
+      .analysis-section {
+        margin-top: 2rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid #e8e8e4;
+      }
+      .analysis-title {
+        font-size: 16px;
+        font-weight: 500;
+        margin-bottom: 0.75rem;
+      }
+      .analysis-controls {
+        margin-bottom: 1rem;
+      }
+      .analysis-controls select {
+        font-size: 13px;
+        padding: 8px 12px;
+        border: 1px solid #ccc;
+        border-radius: 8px;
+        background: #fff;
+        color: #1a1a18;
+        outline: none;
+        min-width: 220px;
+        cursor: pointer;
+      }
+      .analysis-controls select:focus {
+        border-color: #888;
+      }
+      .analysis-placeholder {
+        text-align: center;
+        color: #999;
+        font-size: 13px;
+        padding: 2rem;
+        background: #f8f8f4;
+        border-radius: 8px;
+        border: 1px dashed #ddd;
+      }
+      .analysis-stats {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 10px;
+      }
+      .analysis-stat {
+        background: #eeeee8;
+        border-radius: 8px;
+        padding: 10px 14px;
+        text-align: center;
+      }
+      .analysis-stat .a-label {
+        font-size: 11px;
+        color: #666;
+        margin-bottom: 4px;
+      }
+      .analysis-stat .a-val {
+        font-size: 18px;
+        font-weight: 500;
+      }
+      .analysis-stat .a-sub {
+        font-size: 11px;
+        color: #888;
+        margin-top: 2px;
+      }
+
+      /* Mood row inside table */
+      .mood-btn {
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        border: 1px solid #ccc;
+        background: #fff;
+        cursor: pointer;
+        font-size: 13px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        transition:
+          background 0.15s,
+          border-color 0.15s;
+      }
+      .mood-btn.great {
+        background: #eaf3de;
+        border-color: #639922;
+      }
+      .mood-btn.okay {
+        background: #fff8dc;
+        border-color: #c9a93c;
+      }
+      .mood-btn.bad {
+        background: #fcebeb;
+        border-color: #e24b4a;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="main-title">30-Day Habit Tracker</div>
+      <div class="subtitle" id="date-range">Loading...</div>
+
+      <div class="task-input-row">
+        <input
+          type="text"
+          id="task-input"
+          placeholder="Enter habit name..."
+          maxlength="40"
+        />
+        <button class="btn" onclick="addTask()">+ Add Habit</button>
+      </div>
+
+      <div class="action-row">
+        <button class="btn green" onclick="saveData()">Save</button>
+        <button class="btn blue" onclick="exportExcel()">Export</button>
+        <button class="btn amber" onclick="doneCycle()">Done</button>
+        <span class="save-info" id="save-info"></span>
+      </div>
+
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="stat-label">Days Logged</div>
+          <div class="stat-val" id="stat-total">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Completed ✓</div>
+          <div class="stat-val green" id="stat-done">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Completion Rate</div>
+          <div class="stat-val amber" id="stat-pct">0%</div>
+        </div>
+      </div>
+
+      <!-- Habits + Mood Table (combined) -->
+      <div class="table-scroll">
+        <table id="tracker-table">
+          <thead id="table-head"></thead>
+          <tbody id="mood-body"></tbody>
+          <tbody id="table-body"></tbody>
+        </table>
+      </div>
+
+      <!-- Analysis Section -->
+      <div class="analysis-section">
+        <div class="analysis-title">Monthly Progress Chart</div>
+        <div class="analysis-controls">
+          <select id="analysis-select" onchange="renderAnalysis()">
+            <option value="">-- اختر عادة أو الحالة المزاجية --</option>
+            <option value="__mood__">Daily Mood</option>
+          </select>
+        </div>
+        <div id="analysis-placeholder" class="analysis-placeholder">
+          اختر عادة أو الحالة المزاجية لعرض التطور خلال الشهر
+        </div>
+        <div id="analysis-content" style="display: none">
+          <div class="analysis-stats" id="analysis-stats"></div>
+          <div
+            style="
+              position: relative;
+              width: 100%;
+              height: 220px;
+              margin-top: 1rem;
+            "
+          >
+            <canvas
+              id="analysis-chart"
+              role="img"
+              aria-label="Monthly progress chart"
+            ></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- end .wrap -->
+
+    <div class="toast" id="toast"></div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+
+    <script>
+      const DAYS = 30;
+      const STORAGE_KEY = "habit_tracker_data";
+      let tasks = [];
+      let draggedTaskIndex = null;
+      const MOODS = [null, "great", "okay", "bad"];
+      const MOOD_EMOJI = { great: "😊", okay: "😐", bad: "😞" };
+      let moodData = Array(DAYS).fill(null);
+      let dayLabels = [];
+
+      // ---------- Drag ----------
+      function dragStart(event, index) {
+        draggedTaskIndex = index;
+      }
+      function dragOver(event) {
+        event.preventDefault();
+      }
+      function dropTask(event, targetIndex) {
+        event.preventDefault();
+        if (draggedTaskIndex === null || draggedTaskIndex === targetIndex)
+          return;
+        const dragged = tasks[draggedTaskIndex];
+        tasks.splice(draggedTaskIndex, 1);
+        tasks.splice(targetIndex, 0, dragged);
+        draggedTaskIndex = null;
+        renderBody();
+        saveData();
+      }
+
+      // ---------- Day Labels ----------
+      function getDayLabels() {
+        const saved = loadMeta();
+        const startDate =
+          saved && saved.startDate ? new Date(saved.startDate) : new Date();
+        startDate.setHours(0, 0, 0, 0);
+        const labels = [];
+        for (let i = 0; i < DAYS; i++) {
+          const d = new Date(startDate);
+          d.setDate(startDate.getDate() + i);
+          labels.push({ day: d.getDate(), month: d.getMonth() + 1, date: d });
+        }
+        return labels;
+      }
+
+      // ---------- Storage ----------
+      function loadMeta() {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          return raw ? JSON.parse(raw) : null;
+        } catch {
+          return null;
+        }
+      }
+
+      function saveData() {
+        const data = {
+          startDate: dayLabels[0].date.toISOString(),
+          savedAt: new Date().toISOString(),
+          tasks,
+          moodData,
+        };
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+          showToast("✅ Progress saved!");
+          updateSaveInfo();
+        } catch {
+          showToast("❌ Could not save — storage may be full.");
+        }
+      }
+
+      function loadData() {
+        const data = loadMeta();
+        if (data) {
+          if (data.tasks) tasks = data.tasks;
+          if (data.moodData) moodData = data.moodData;
+          if (data.tasks || data.moodData)
+            showToast("📂 Data loaded from last session");
+        }
+      }
+
+      function doneCycle() {
+        if (
+          !confirm(
+            "Start a new 30-day cycle? Habits will stay, but progress and mood will reset.",
+          )
+        )
+          return;
+        tasks.forEach((task) => {
+          task.days = Array(DAYS).fill(null);
+        });
+        moodData = Array(DAYS).fill(null);
+        const newStart = new Date();
+        newStart.setHours(0, 0, 0, 0);
+        dayLabels = [];
+        for (let i = 0; i < DAYS; i++) {
+          const d = new Date(newStart);
+          d.setDate(newStart.getDate() + i);
+          dayLabels.push({
+            day: d.getDate(),
+            month: d.getMonth() + 1,
+            date: d,
+          });
+        }
+        saveData();
+        setDateRange();
+        renderHead();
+        renderBody();
+        renderMoodRow();
+        showToast("✅ New 30-day cycle started!");
+      }
+
+      function updateSaveInfo() {
+        const data = loadMeta();
+        const el = document.getElementById("save-info");
+        if (data && data.savedAt) {
+          const d = new Date(data.savedAt);
+          el.textContent =
+            "Last saved: " +
+            d.toLocaleDateString("en-US", { month: "short", day: "numeric" }) +
+            " at " +
+            d.toLocaleTimeString("en-US", {
+              hour: "2-digit",
+              minute: "2-digit",
+            });
+        } else {
+          el.textContent = "Not saved yet";
+        }
+      }
+
+      function showToast(msg) {
+        const t = document.getElementById("toast");
+        t.textContent = msg;
+        t.classList.add("show");
+        setTimeout(() => t.classList.remove("show"), 2500);
+      }
+
+      // ---------- Render Habits ----------
+      function setDateRange() {
+        const first = dayLabels[0].date;
+        const last = dayLabels[DAYS - 1].date;
+        const fmt = (d) =>
+          d.toLocaleDateString("en-US", {
+            day: "numeric",
+            month: "short",
+            year: "numeric",
+          });
+        document.getElementById("date-range").textContent =
+          fmt(first) + " — " + fmt(last);
+      }
+
+      function renderHead() {
+        const head = document.getElementById("table-head");
+        let html =
+          '<tr><th style="width:32px"></th><th class="task-col">Habit</th>';
+        for (let i = 0; i < DAYS; i++) {
+          html += `<th style="width:26px">${dayLabels[i].day}<br><span style="font-size:9px;font-weight:400">${dayLabels[i].month}</span></th>`;
+        }
+        html += '<th class="pct-col">Rate</th><th class="del-col"></th></tr>';
+        head.innerHTML = html;
+      }
+
+      function calcPct(task) {
+        const filled = task.days.filter((d) => d !== null).length;
+        if (filled === 0) return 0;
+        return Math.round(
+          (task.days.filter((d) => d === true).length / filled) * 100,
+        );
+      }
+
+      function renderBody() {
+        const body = document.getElementById("table-body");
+        if (tasks.length === 0) {
+          body.innerHTML = `<tr><td colspan="${DAYS + 4}" class="no-tasks">Add a habit above to get started 👆</td></tr>`;
+          updateStats();
+          return;
+        }
+        let html = "";
+        tasks.forEach((task, ti) => {
+          const pct = calcPct(task);
+          const barColor =
+            pct >= 70 ? "#639922" : pct >= 40 ? "#BA7517" : "#E24B4A";
+          html += `<tr ondragover="dragOver(event)" ondrop="dropTask(event,${ti})">`;
+          html += `<td><span class="drag-handle" draggable="true" ondragstart="dragStart(event,${ti})" title="Drag to reorder">☰</span></td>`;
+          html += `<td class="task-name" title="${task.name}">${task.name}</td>`;
+          for (let d = 0; d < DAYS; d++) {
+            const state = task.days[d];
+            let cls = "day-btn",
+              icon = "";
+            if (state === true) {
+              cls += " done";
+              icon = "✓";
+            } else if (state === false) {
+              cls += " missed";
+              icon = "✗";
+            }
+            html += `<td><button class="${cls}" onclick="toggle(${ti},${d})" title="Day ${d + 1}">${icon}</button></td>`;
+          }
+          html += `<td class="pct-cell">
+            <div class="pct-val" style="color:${barColor}">${pct}%</div>
+            <div class="pct-bar-wrap"><div class="pct-bar" style="width:${pct}%;background:${barColor}"></div></div>
+          </td>`;
+          html += `<td><button class="remove-btn" onclick="removeTask(${ti})" title="Delete">🗑</button></td>`;
+          html += "</tr>";
+        });
+        body.innerHTML = html;
+        updateStats();
+      }
+
+      function toggle(ti, d) {
+        const cur = tasks[ti].days[d];
+        tasks[ti].days[d] = cur === null ? true : cur === true ? false : null;
+        renderBody();
+      }
+
+      function addTask() {
+        const input = document.getElementById("task-input");
+        const name = input.value.trim();
+        if (!name) return;
+        tasks.push({ name, days: Array(DAYS).fill(null) });
+        input.value = "";
+        renderBody();
+        refreshAnalysisSelect();
+      }
+
+      function removeTask(ti) {
+        tasks.splice(ti, 1);
+        renderBody();
+        refreshAnalysisSelect();
+      }
+
+      function updateStats() {
+        let total = 0,
+          done = 0;
+        tasks.forEach((t) =>
+          t.days.forEach((d) => {
+            if (d !== null) {
+              total++;
+              if (d === true) done++;
+            }
+          }),
+        );
+        document.getElementById("stat-total").textContent = total;
+        document.getElementById("stat-done").textContent = done;
+        document.getElementById("stat-pct").textContent =
+          total > 0 ? Math.round((done / total) * 100) + "%" : "0%";
+      }
+
+      // ---------- Mood Row (inside main table) ----------
+      function renderMoodRow() {
+        const moodBody = document.getElementById("mood-body");
+        const counts = { great: 0, okay: 0, bad: 0 };
+        moodData.forEach((m) => {
+          if (m) counts[m]++;
+        });
+        const logged = counts.great + counts.okay + counts.bad;
+        const topMood =
+          counts.great >= counts.okay && counts.great >= counts.bad
+            ? counts.great > 0
+              ? "😊"
+              : "—"
+            : counts.okay >= counts.bad
+              ? counts.okay > 0
+                ? "😐"
+                : "—"
+              : "😞";
+
+        let bodyHtml = `<tr>
+          <td></td>
+          <td class="task-name">Daily Mood</td>`;
+        for (let i = 0; i < DAYS; i++) {
+          const mood = moodData[i];
+          const cls = mood ? mood : "";
+          const icon = mood ? MOOD_EMOJI[mood] : "";
+          bodyHtml += `<td style="text-align:center;padding:5px 2px;border-bottom:1px solid #e8e8e4;">
+            <button class="mood-btn ${cls}" onclick="cycleMood(${i})" title="Day ${i + 1}">${icon}</button>
+          </td>`;
+        }
+        bodyHtml += `<td class="pct-cell">
+          <div class="pct-val" style="color:#854f0b;">${logged}/30</div>
+          <div style="font-size:11px;color:#888;margin-top:3px;">${topMood} most</div>
+        </td>`;
+        bodyHtml += `<td></td></tr>`;
+        moodBody.innerHTML = bodyHtml;
+      }
+
+      function cycleMood(i) {
+        const cur = MOODS.indexOf(moodData[i]);
+        moodData[i] = MOODS[(cur + 1) % MOODS.length];
+        renderMoodRow();
+      }
+
+      // ---------- Export ----------
+      function exportExcel() {
+        if (tasks.length === 0) {
+          showToast("⚠️ No habits to export.");
+          return;
+        }
+        const wb = XLSX.utils.book_new();
+
+        // Sheet 1 — Habits
+        const header = [
+          "Habit",
+          ...dayLabels.map((l) =>
+            l.date.toLocaleDateString("en-US", {
+              month: "short",
+              day: "numeric",
+            }),
+          ),
+          "Completion Rate",
+        ];
+        const rows = tasks.map((task) => {
+          const pct = calcPct(task);
+          return [
+            task.name,
+            ...task.days.map((d) =>
+              d === true ? "✓" : d === false ? "✗" : "",
+            ),
+            pct + "%",
+          ];
+        });
+        const summaryRow = [
+          "TOTAL LOGGED",
+          ...Array.from(
+            { length: DAYS },
+            (_, d) => tasks.filter((t) => t.days[d] !== null).length || "",
+          ),
+          "",
+        ];
+        const doneRow = [
+          "COMPLETED",
+          ...Array.from(
+            { length: DAYS },
+            (_, d) => tasks.filter((t) => t.days[d] === true).length || "",
+          ),
+          "",
+        ];
+        const ws1 = XLSX.utils.aoa_to_sheet([
+          header,
+          ...rows,
+          [],
+          summaryRow,
+          doneRow,
+        ]);
+        ws1["!cols"] = [
+          { wch: 20 },
+          ...Array(DAYS).fill({ wch: 6 }),
+          { wch: 16 },
+        ];
+        XLSX.utils.book_append_sheet(wb, ws1, "Habit Tracker");
+
+        // Sheet 2 — Mood
+        const moodHeader = ["Date", "Mood"];
+        const moodRows = dayLabels.map((l, i) => [
+          l.date.toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+          }),
+          moodData[i]
+            ? moodData[i].charAt(0).toUpperCase() + moodData[i].slice(1)
+            : "",
+        ]);
+        const ws2 = XLSX.utils.aoa_to_sheet([moodHeader, ...moodRows]);
+        ws2["!cols"] = [{ wch: 12 }, { wch: 10 }];
+        XLSX.utils.book_append_sheet(wb, ws2, "Mood Tracker");
+
+        XLSX.writeFile(
+          wb,
+          "habit_tracker_" + new Date().toISOString().slice(0, 10) + ".xlsx",
+        );
+        showToast("📊 Excel file downloaded!");
+      }
+
+      // ---------- Analysis ----------
+      let analysisChart = null;
+
+      function refreshAnalysisSelect() {
+        const sel = document.getElementById("analysis-select");
+        const current = sel.value;
+        while (sel.options.length > 2) sel.remove(2);
+        tasks.forEach((t, i) => {
+          const opt = document.createElement("option");
+          opt.value = "task_" + i;
+          opt.textContent = t.name;
+          sel.appendChild(opt);
+        });
+        sel.value = current;
+        renderAnalysis();
+      }
+
+      function renderAnalysis() {
+        const sel = document.getElementById("analysis-select");
+        const val = sel.value;
+        const placeholder = document.getElementById("analysis-placeholder");
+        const content = document.getElementById("analysis-content");
+
+        if (!val) {
+          placeholder.style.display = "block";
+          content.style.display = "none";
+          if (analysisChart) {
+            analysisChart.destroy();
+            analysisChart = null;
+          }
+          return;
+        }
+
+        placeholder.style.display = "none";
+        content.style.display = "block";
+
+        let labels = [],
+          data = [],
+          pointColors = [],
+          isMood = false;
+
+        if (val === "__mood__") {
+          isMood = true;
+          const moodVal = { great: 3, okay: 2, bad: 1 };
+          labels = dayLabels.map((l) => l.day + "/" + l.month);
+          data = moodData.map((m) => (m ? moodVal[m] : null));
+          pointColors = data.map((v) =>
+            v === 3
+              ? "#639922"
+              : v === 2
+                ? "#BA7517"
+                : v === 1
+                  ? "#E24B4A"
+                  : "#ccc",
+          );
+        } else {
+          const ti = parseInt(val.replace("task_", ""));
+          const task = tasks[ti];
+          labels = dayLabels.map((l) => l.day + "/" + l.month);
+          data = task.days.map((d) =>
+            d === true ? 1 : d === false ? 0 : null,
+          );
+          pointColors = data.map((v) =>
+            v === 1 ? "#639922" : v === 0 ? "#E24B4A" : "#ccc",
+          );
+        }
+
+        // Stats
+        const filled = data.filter((d) => d !== null);
+        const statsEl = document.getElementById("analysis-stats");
+
+        if (isMood) {
+          const counts = { great: 0, okay: 0, bad: 0 };
+          moodData.forEach((m) => {
+            if (m) counts[m]++;
+          });
+          const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+          const topLabel =
+            top[1] > 0
+              ? { great: "Great 😊", okay: "Okay 😐", bad: "Bad 😞" }[top[0]]
+              : "—";
+          const moodEmojis = { great: "😊", okay: "😐", bad: "😞" };
+          const highDay = moodData.reduce((best, m, i) => {
+            const v = { great: 3, okay: 2, bad: 1 };
+            return m && (!best || v[m] > v[moodData[best]]) ? i : best;
+          }, null);
+          const lowDay = moodData.reduce((worst, m, i) => {
+            const v = { great: 3, okay: 2, bad: 1 };
+            return m && (!worst || v[m] < v[moodData[worst]]) ? i : worst;
+          }, null);
+          statsEl.innerHTML = `
+            <div class="analysis-stat">
+              <div class="a-label">الأكثر شيوعاً</div>
+              <div class="a-val">${topLabel}</div>
+              <div class="a-sub">${top[1]} يوم</div>
+            </div>
+            <div class="analysis-stat">
+              <div class="a-label">أعلى يوم</div>
+              <div class="a-val">${highDay !== null ? moodEmojis[moodData[highDay]] : "—"}</div>
+              <div class="a-sub">${highDay !== null ? "يوم " + (highDay + 1) : ""}</div>
+            </div>
+            <div class="analysis-stat">
+              <div class="a-label">أصعب يوم</div>
+              <div class="a-val">${lowDay !== null ? moodEmojis[moodData[lowDay]] : "—"}</div>
+              <div class="a-sub">${lowDay !== null ? "يوم " + (lowDay + 1) : ""}</div>
+            </div>
+          `;
+        } else {
+          const doneCount = filled.filter((v) => v === 1).length;
+          const missedCount = filled.filter((v) => v === 0).length;
+          const pct =
+            filled.length > 0
+              ? Math.round((doneCount / filled.length) * 100)
+              : 0;
+          const barColor =
+            pct >= 70 ? "#639922" : pct >= 40 ? "#BA7517" : "#E24B4A";
+          let maxStreak = 0,
+            curStreak = 0;
+          data.forEach((v) => {
+            if (v === 1) {
+              curStreak++;
+              maxStreak = Math.max(maxStreak, curStreak);
+            } else if (v === 0) curStreak = 0;
+          });
+          statsEl.innerHTML = `
+            <div class="analysis-stat">
+              <div class="a-label">معدل الإنجاز</div>
+              <div class="a-val" style="color:${barColor}">${pct}%</div>
+              <div class="a-sub">${doneCount} من ${filled.length} يوم</div>
+            </div>
+            <div class="analysis-stat">
+              <div class="a-label">أطول سلسلة</div>
+              <div class="a-val" style="color:#639922">${maxStreak}</div>
+              <div class="a-sub">يوم متتالي</div>
+            </div>
+            <div class="analysis-stat">
+              <div class="a-label">الأيام المفقودة</div>
+              <div class="a-val" style="color:#E24B4A">${missedCount}</div>
+              <div class="a-sub">من ${filled.length} يوم مسجل</div>
+            </div>
+          `;
+        }
+
+        // Chart
+        const ctx = document.getElementById("analysis-chart").getContext("2d");
+        if (analysisChart) {
+          analysisChart.destroy();
+          analysisChart = null;
+        }
+
+        if (isMood) {
+          analysisChart = new Chart(ctx, {
+            type: "line",
+            data: {
+              labels,
+              datasets: [
+                {
+                  label: "Mood",
+                  data,
+                  borderColor: "#378add",
+                  backgroundColor: "rgba(55,138,221,0.08)",
+                  pointBackgroundColor: pointColors,
+                  pointBorderColor: pointColors,
+                  pointRadius: data.map((v) => (v !== null ? 6 : 0)),
+                  pointHoverRadius: 8,
+                  tension: 0.35,
+                  fill: true,
+                  spanGaps: true,
+                },
+              ],
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                legend: { display: false },
+                tooltip: {
+                  callbacks: {
+                    label: (ctx) => {
+                      const v = ctx.raw;
+                      return v === 3
+                        ? "Great 😊"
+                        : v === 2
+                          ? "Okay 😐"
+                          : v === 1
+                            ? "Bad 😞"
+                            : "—";
+                    },
+                  },
+                },
+              },
+              scales: {
+                x: {
+                  ticks: {
+                    font: { size: 10 },
+                    maxRotation: 45,
+                    autoSkip: true,
+                    maxTicksLimit: 15,
+                  },
+                  grid: { color: "rgba(0,0,0,0.05)" },
+                },
+                y: {
+                  min: 0.5,
+                  max: 3.5,
+                  ticks: {
+                    stepSize: 1,
+                    font: { size: 11 },
+                    callback: (v) =>
+                      v === 3
+                        ? "😊 Great"
+                        : v === 2
+                          ? "😐 Okay"
+                          : v === 1
+                            ? "😞 Bad"
+                            : "",
+                  },
+                  grid: { color: "rgba(0,0,0,0.05)" },
+                },
+              },
+            },
+          });
+        } else {
+          const barBg = data.map((v) =>
+            v === 1 ? "#eaf3de" : v === 0 ? "#fcebeb" : "#eee",
+          );
+          const barBorder = data.map((v) =>
+            v === 1 ? "#639922" : v === 0 ? "#E24B4A" : "#ccc",
+          );
+          analysisChart = new Chart(ctx, {
+            type: "bar",
+            data: {
+              labels,
+              datasets: [
+                {
+                  label: "Status",
+                  data: data.map((v) => (v !== null ? 1 : 0.15)),
+                  backgroundColor: barBg,
+                  borderColor: barBorder,
+                  borderWidth: 1.5,
+                  borderRadius: 4,
+                },
+              ],
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                legend: { display: false },
+                tooltip: {
+                  callbacks: {
+                    label: (ctx) => {
+                      const orig = data[ctx.dataIndex];
+                      return orig === 1
+                        ? "Done ✓"
+                        : orig === 0
+                          ? "Missed ✗"
+                          : "Not logged";
+                    },
+                  },
+                },
+              },
+              scales: {
+                x: {
+                  ticks: {
+                    font: { size: 10 },
+                    maxRotation: 45,
+                    autoSkip: true,
+                    maxTicksLimit: 15,
+                  },
+                  grid: { display: false },
+                },
+                y: {
+                  min: 0,
+                  max: 1.2,
+                  display: false,
+                },
+              },
+            },
+          });
+        }
+      }
+
+      // ---------- Init ----------
+      document.getElementById("task-input").addEventListener("keydown", (e) => {
+        if (e.key === "Enter") addTask();
+      });
+
+      dayLabels = getDayLabels();
+      loadData();
+      setDateRange();
+      renderHead();
+      renderMoodRow();
+      renderBody();
+      updateSaveInfo();
+      refreshAnalysisSelect();
+    </script>
+  </body>
+</html>
